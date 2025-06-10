@@ -5,7 +5,13 @@ from _pytest.fixtures import FixtureRequest
 
 from litestar import Controller, WebSocket, delete, head, patch, put, websocket
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED, HTTP_204_NO_CONTENT
-from litestar.testing import AsyncTestClient, WebSocketTestSession, create_async_test_client, create_test_client
+from litestar.testing import (
+    AsyncTestClient,
+    AsyncWebSocketTestSession,
+    WebSocketTestSession,
+    create_async_test_client,
+    create_test_client,
+)
 
 if TYPE_CHECKING:
     from litestar.middleware.session.base import BaseBackendConfig
@@ -279,18 +285,18 @@ def test_websocket_accept_timeout(anyio_backend: "AnyIOBackend") -> None:
         pass
 
 
-@pytest.mark.parametrize("block,timeout", [(False, None), (False, 0.001), (True, 0.001)])
+@pytest.mark.parametrize("timeout", [0.001])
 @pytest.mark.parametrize(
     "receive_method",
     [
-        WebSocketTestSession.receive,
-        WebSocketTestSession.receive_json,
-        WebSocketTestSession.receive_text,
-        WebSocketTestSession.receive_bytes,
+        AsyncWebSocketTestSession.receive,
+        AsyncWebSocketTestSession.receive_json,
+        AsyncWebSocketTestSession.receive_text,
+        AsyncWebSocketTestSession.receive_bytes,
     ],
 )
 async def test_websocket_test_session_block_timeout_async(
-    receive_method: Callable[..., Any], block: bool, timeout: Optional[float], anyio_backend: "AnyIOBackend"
+    receive_method: Callable[..., Any], timeout: Optional[float], anyio_backend: "AnyIOBackend"
 ) -> None:
     @websocket()
     async def handler(socket: WebSocket) -> None:
@@ -298,8 +304,8 @@ async def test_websocket_test_session_block_timeout_async(
 
     with pytest.raises(Empty):
         async with create_async_test_client(handler, backend=anyio_backend) as client:
-            with await client.websocket_connect("/") as ws:
-                receive_method(ws, timeout=timeout, block=block)
+            async with await client.websocket_connect("/") as ws:
+                await receive_method(ws, timeout=timeout)
 
 
 async def test_websocket_accept_timeout_async(anyio_backend: "AnyIOBackend") -> None:
@@ -308,8 +314,8 @@ async def test_websocket_accept_timeout_async(anyio_backend: "AnyIOBackend") -> 
         pass
 
     async with create_async_test_client(handler, backend=anyio_backend, timeout=0.1) as client:
-        with pytest.raises(Empty):
-            with await client.websocket_connect("/"):
+        with pytest.raises(TimeoutError):
+            async with await client.websocket_connect("/"):
                 pass
 
 
@@ -322,9 +328,9 @@ async def test_websocket_connect_async(anyio_backend: "AnyIOBackend") -> None:
         await socket.close()
 
     async with create_async_test_client(handler, backend=anyio_backend, timeout=0.1) as client:
-        with await client.websocket_connect("/", subprotocols="wamp") as ws:
-            ws.send_json({"data": "123"})
-            data = ws.receive_json()
+        async with await client.websocket_connect("/", subprotocols="wamp") as ws:
+            await ws.send_json({"data": "123"})
+            data = await ws.receive_json()
             assert data == {"data": "123"}
 
 
@@ -339,17 +345,17 @@ async def test_websocket_async_receive_methods(anyio_backend: "AnyIOBackend") ->
         await socket.close()
 
     async with create_async_test_client(handler, backend=anyio_backend, timeout=0.1) as client:
-        with await client.websocket_connect("/") as ws:
-            text_data = ws.receive_text()
+        async with await client.websocket_connect("/") as ws:
+            text_data = await ws.receive_text()
             assert text_data == "text_message"
 
-            bytes_data = ws.receive_bytes()
+            bytes_data = await ws.receive_bytes()
             assert bytes_data == b"bytes_message"
 
-            json_data = ws.receive_json()
+            json_data = await ws.receive_json()
             assert json_data == {"key": "value"}
 
-            msgpack_data = ws.receive_msgpack()
+            msgpack_data = await ws.receive_msgpack()
             assert msgpack_data == {"msgpack": "data"}
 
 
@@ -362,6 +368,6 @@ async def test_websocket_async_receive_timeout(anyio_backend: "AnyIOBackend") ->
     from queue import Empty
 
     async with create_async_test_client(handler, backend=anyio_backend, timeout=0.1) as client:
-        with await client.websocket_connect("/") as ws:
+        async with await client.websocket_connect("/") as ws:
             with pytest.raises(Empty):
-                ws.receive_text(timeout=0.001, block=False)
+                await ws.receive_text(timeout=0.001)

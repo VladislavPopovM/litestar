@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from contextlib import AsyncExitStack
-from typing import TYPE_CHECKING, Any, Generic, Mapping, Sequence, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Mapping, Sequence, TypeVar, cast
 
 from httpx import USE_CLIENT_DEFAULT, AsyncClient
 
@@ -196,7 +196,9 @@ class AsyncTestClient(AsyncClient, BaseTestClient, Generic[T]):  # type: ignore[
         )
 
         # Return AsyncWebSocketTestSession directly
-        return AsyncWebSocketTestSession(client=self, scope=scope)
+        from litestar.types import WebSocketScope
+
+        return AsyncWebSocketTestSession(client=self, scope=cast(WebSocketScope, scope))
 
     async def get_session_data(self) -> dict[str, Any]:
         """Get session data.

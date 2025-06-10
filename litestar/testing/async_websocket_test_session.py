@@ -121,8 +121,8 @@ class AsyncWebSocketTestSession:
             """Async send to test client."""
             # Handle connection acceptance
             if message["type"] == "websocket.accept":
-                headers = message.get("headers", [])
-                if headers:
+                headers = message.get("headers")
+                if headers is not None:
                     headers_list = list(self.scope["headers"])
                     headers_list.extend(headers)
                     self.scope["headers"] = headers_list
